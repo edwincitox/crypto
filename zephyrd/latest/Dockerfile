@@ -1,17 +1,32 @@
 # Builder stage
 FROM debian:stable-slim AS builder
-RUN apt-get update && apt-get full-upgrade -y && apt-get install --no-install-recommends -y ca-certificates wget unzip && apt-get clean
-WORKDIR /app
-RUN wget -O zephyr.zip https://github.com/ZephyrProtocol/zephyr/releases/download/v1.0.4/zephyr-cli-linux-v1.0.4.zip && \
-    unzip zephyr.zip && \
-    rm zephyr.zip && \
-    mv zephyr* zephyr && \
-    chmod -Rf +x zephyr/*
+
+ARG latest_release=v1.0.4
+
+RUN apt-get update && \
+    apt-get full-upgrade -y && \
+    apt-get install --no-install-recommends -y build-essential ca-certificates ccache cmake doxygen git graphviz libboost-all-dev libboost-chrono-dev libboost-date-time-dev libboost-filesystem-dev libboost-locale-dev libboost-program-options-dev libboost-regex-dev libboost-serialization-dev libboost-system-dev libboost-thread-dev libexpat1-dev libgtest-dev libhidapi-dev liblzma-dev libnorm-dev libpgm-dev libprotobuf-dev libreadline6-dev libsodium-dev libssl-dev libudev-dev libunbound-dev libunwind8-dev libusb-1.0-0-dev libzmq3-dev pkg-config protobuf-compiler python3 qttools5-dev-tools sudo && \
+    cd /usr/src/gtest && \
+    sudo cmake . && \
+    sudo make && \
+    sudo mv lib/libg* /usr/lib/
+WORKDIR /build
+RUN git clone --recursive https://github.com/ZephyrProtocol/zephyr && \
+    cd zephyr && \
+    git submodule init && \
+    git submodule sync && \
+    git submodule update && \
+    git checkout ${latest_release} && \
+    git submodule update && \
+    make && \
+    mkdir -p /app/ && \
+    mv /build/zephyr/build/Linux/_HEAD_detached_at_${latest_release}_/release/bin/* /app/  && \
+    chmod -Rf +x /app/
 
 # Runtime stage
 FROM debian:stable-slim
 
-COPY --from=builder /app/zephyr/* /usr/bin/
+COPY --from=builder /app/* /usr/bin/
 
 # Create zephyr user
 RUN addgroup --gid 1000 zephyr && \
